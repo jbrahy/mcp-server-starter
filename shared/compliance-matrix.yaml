@@ -178,3 +178,311 @@ log_schema:
     doc_anchor: "shared/docs/04-config-and-logging.md#stdio-mode"
     code_anchor: "templates/typescript/src/transports/stdio.ts#stdoutGuard"
     notes: ""
+
+surface:
+  yaml_path: "shared/example-surface.yaml"
+  checkpoints:
+    - id: "SURF-01"
+      level: "MUST"
+      check: "add tool name, inputSchema (a/b as JSON-Schema number, both required), timing (total_ms 5000 / progress_interval_ms 1000 / progress_steps 5 / cancel_after_ms 2500 / expect_progress_count_at_cancel 3), result envelope ({content: [{type: text, text: String(a+b)}], isError: false}), and cancel_envelope ({isError: true, content: [{type: text, text: \"cancelled\"}]}) match shared/example-surface.yaml byte-for-byte"
+      doc_anchor: "shared/docs/00-overview.md#per-template-contract-checklist"
+      code_anchor: "templates/typescript/src/tools/add.ts#addTool"
+      notes: "Byte-locks 03-CONTEXT D-06..D-11. Cross-references ERR-02 (tool-error envelope) and PROG-01/PROG-02 (progress emission and cancellation grace)."
+    - id: "SURF-02"
+      level: "MUST"
+      check: "example://greeting resource uri (lowercase, exact), mimeType text/plain, and text bytes \"Hello from MCP\" (UTF-8, no trailing newline) match shared/example-surface.yaml verbatim"
+      doc_anchor: "shared/docs/00-overview.md#per-template-contract-checklist"
+      code_anchor: "templates/typescript/src/resources/example.ts#greetingResource"
+      notes: "Byte-locks 03-CONTEXT D-12."
+    - id: "SURF-03"
+      level: "MUST"
+      check: "greet prompt name (lowercase, exact), single required string argument 'name' (no default, no maxLength), and render_template 'Hello, {{name}}!' (literal double-braces; substituted byte-for-byte; no surrounding whitespace) match shared/example-surface.yaml verbatim"
+      doc_anchor: "shared/docs/00-overview.md#per-template-contract-checklist"
+      code_anchor: "templates/typescript/src/prompts/example.ts#greetPrompt"
+      notes: "Byte-locks 03-CONTEXT D-13."
+
+security:
+  - id: "SEC-01"
+    level: "MUST"
+    check: "In stdio mode, stdout (fd 1) contains only newline-delimited JSON-RPC envelopes; no log lines, no debug prints, no banners reach fd 1"
+    doc_anchor: "shared/docs/02-security-baseline.md#stdout-discipline-stdio-mode"
+    code_anchor: "templates/typescript/src/logger.ts#stderrSinkOnly"
+    notes: "Pitfall 1.1; Daedra #4 case study. Cross-references LOG-01 (stderr-only logger) and LOG-11 (stdout sink prohibited)."
+  - id: "SEC-02"
+    level: "MUST"
+    check: "HTTP transport binds 127.0.0.1 by default; non-loopback MCP_HTTP_HOST emits a WARN log line at startup naming the bound address"
+    doc_anchor: "shared/docs/02-security-baseline.md#http-bind-default"
+    code_anchor: "templates/typescript/src/transports/http.ts#bindHost"
+    notes: "Cross-references XPORT-02 (same contract from the transport perspective)."
+  - id: "SEC-03"
+    level: "MUST"
+    check: "HTTP transport enforces an Origin allowlist with deny-by-default semantics: no-Origin requests pass (non-browser clients), allowlisted Origins pass, unknown Origins receive 403 Forbidden, empty allowlist denies all browser clients"
+    doc_anchor: "shared/docs/02-security-baseline.md#origin-validation"
+    code_anchor: "templates/typescript/src/security/origin.ts#originAllowlist"
+    notes: "Cross-references XPORT-03. Default allowlist entries finalized in Phase 5."
+  - id: "SEC-04"
+    level: "MUST"
+    check: "HTTP transport exposes an authentication middleware seam at templates/typescript/src/http/auth.ts with a DEV-ONLY default that emits a WARN log line on every request until replaced"
+    doc_anchor: "shared/docs/02-security-baseline.md#authentication-hook-seam"
+    code_anchor: "templates/typescript/src/http/auth.ts#authHook"
+    notes: "Exact signature finalized in Phase 7. The WARN per request is intentional — the omission must be loud, not silent."
+  - id: "SEC-05"
+    level: "MUST"
+    check: "Filesystem-backed resources/tools route every access through a roots-aware helper that (a) rejects paths containing a null byte before any concatenation, (b) calls the OS canonical-path resolver to follow symlinks (fs.realpath in Node), (c) asserts the canonical resolved path starts with one of the canonicalized configured roots, (d) rejects with a clear error otherwise; the canonical-path check happens AFTER symlink resolution, not before"
+    doc_anchor: "shared/docs/02-security-baseline.md#filesystem-roots-enforcement"
+    code_anchor: "templates/typescript/src/security/fs-roots.ts#resolveUnderRoots"
+    notes: "Cites CVE-2025-67364 and CVE-2025-53109 (both 2025 MCP-server filesystem-escape vulnerabilities caused by path checks running before symlink resolution)."
+  - id: "SEC-06"
+    level: "MUST"
+    check: "Header-name redaction (case-insensitive): \"Authorization\", \"Proxy-Authorization\", \"Cookie\", \"Set-Cookie\". Replacement: literal \"[REDACTED]\"."
+    doc_anchor: "shared/docs/02-security-baseline.md#secret-redaction-in-logs"
+    code_anchor: "templates/typescript/src/logger.ts#redact"
+    notes: "Phase 2 D-11 verbatim. Header-name family of the 7-family redaction split."
+  - id: "SEC-07"
+    level: "MUST"
+    check: "Field-name redaction (case-insensitive on object key): \"password\", \"api_key\", \"apikey\", \"secret\", \"token\", \"access_token\", \"refresh_token\", \"client_secret\", \"private_key\". Replacement: literal \"[REDACTED]\"."
+    doc_anchor: "shared/docs/02-security-baseline.md#secret-redaction-in-logs"
+    code_anchor: "templates/typescript/src/logger.ts#redact"
+    notes: "Phase 2 D-11 verbatim. Field-name family of the 7-family redaction split."
+  - id: "SEC-08"
+    level: "MUST"
+    check: "Bearer-token regex (RFC 6750 scheme): Bearer\\s+[A-Za-z0-9._~+/=-]+. Replacement: literal \"[REDACTED]\"."
+    doc_anchor: "shared/docs/02-security-baseline.md#secret-redaction-in-logs"
+    code_anchor: "templates/typescript/src/logger.ts#redact"
+    notes: "Phase 2 D-11 verbatim. Bearer-token family of the 7-family redaction split."
+  - id: "SEC-09"
+    level: "MUST"
+    check: "AWS regexes: AKIA[0-9A-Z]{16} (access key ID); (?<![A-Za-z0-9])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9]) (secret access key, 40-char base64 alphabet, word-boundary-anchored). Replacement: literal \"[REDACTED]\"."
+    doc_anchor: "shared/docs/02-security-baseline.md#secret-redaction-in-logs"
+    code_anchor: "templates/typescript/src/logger.ts#redact"
+    notes: "Phase 2 D-11 verbatim. AWS-credential family of the 7-family redaction split."
+  - id: "SEC-10"
+    level: "MUST"
+    check: "GitHub token regexes: gh[pousr]_[A-Za-z0-9]{36} (classic PATs: ghp_, gho_, ghu_, ghs_, ghr_); github_pat_[A-Za-z0-9_]{82,} (fine-grained PATs). Replacement: literal \"[REDACTED]\"."
+    doc_anchor: "shared/docs/02-security-baseline.md#secret-redaction-in-logs"
+    code_anchor: "templates/typescript/src/logger.ts#redact"
+    notes: "Phase 2 D-11 verbatim. GitHub-PAT family of the 7-family redaction split."
+  - id: "SEC-11"
+    level: "MUST"
+    check: "OpenAI/Anthropic API key regexes: sk-[A-Za-z0-9]{20,} (OpenAI shape); sk-ant-[A-Za-z0-9_-]{20,} (Anthropic). Replacement: literal \"[REDACTED]\"."
+    doc_anchor: "shared/docs/02-security-baseline.md#secret-redaction-in-logs"
+    code_anchor: "templates/typescript/src/logger.ts#redact"
+    notes: "Phase 2 D-11 verbatim. LLM-vendor-key family of the 7-family redaction split."
+  - id: "SEC-12"
+    level: "MUST"
+    check: "Slack tokens xox[baprs]-[A-Za-z0-9-]{10,} (bot/app/user/refresh/scope); JWT shape eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+ (header.payload.signature, base64url); Email PII [A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,} (redacted unless operator opts in via MCP_LOG_PII=1). Replacement: literal \"[REDACTED]\"."
+    doc_anchor: "shared/docs/02-security-baseline.md#secret-redaction-in-logs"
+    code_anchor: "templates/typescript/src/logger.ts#redact"
+    notes: "Phase 2 D-11 verbatim. Misc-tokens-and-PII family of the 7-family redaction split; Email PII is the only pattern in the entire redaction set with an operator-controlled gate."
+  - id: "SEC-13"
+    level: "MUST"
+    check: "No shell-execution tool ships in the default templates; any operator-added process-execution tool MUST use a strict command allowlist, reject shell metacharacters (; & | backtick $( > <), and spawn the child process directly without invoking a shell (execFile not exec in Node; subprocess.run([...], shell=False) in Python; exec.Command not bash -c in Go)"
+    doc_anchor: "shared/docs/02-security-baseline.md#shell-execution-disabled-by-default"
+    code_anchor: "templates/typescript/src/tools/index.ts#registeredTools"
+    notes: "Cites CVE-2025-68143, CVE-2025-68144, CVE-2025-68145 (three 2025 MCP-server remote-code-execution vulnerabilities caused by templates shipping shell-execution tools enabled by default)."
+  - id: "SEC-14"
+    level: "MUST"
+    check: "Templates ship allowlist-ready: the default configuration makes no outbound network requests to arbitrary destinations on behalf of tool inputs. Tools requiring outbound access expose an MCP_HTTP_ALLOWLIST (or similar) env var; default is empty = deny-all. Soft default (WARN on out-of-allowlist) PERMITTED; hard rejection RECOMMENDED."
+    doc_anchor: "shared/docs/02-security-baseline.md#outbound-network-access"
+    code_anchor: "templates/typescript/src/security/network.ts#egressAllowlist"
+    notes: "Default-empty = deny-all is the safe initial posture; operators opt in to specific destinations explicitly."
+  - id: "SEC-15"
+    level: "SHOULD"
+    check: "GET /.well-known/oauth-protected-resource returns an RFC 9728 stub JSON document containing _DEV_STUB: true and a _DEV_WARNING field; the route emits a WARN log line per request indicating the stub is in use"
+    doc_anchor: "shared/docs/02-security-baseline.md#oauth-protected-resource-metadata-stub"
+    code_anchor: "templates/typescript/src/http/oauth-prm.ts#prmRoute"
+    notes: "Stub shape finalized in Phase 7 (authorization_servers, scopes_supported fields). Level is SHOULD here because the full RFC 9728 shape is still being negotiated against the spec evolution. Cross-references XPORT-05 (same stub from the transport perspective)."
+  - id: "SEC-16"
+    level: "SHOULD"
+    check: "Per-template Dockerfile uses a multi-stage build (separate builder and runtime stages), runs as a non-root user at runtime, uses a minimal or distroless runtime base image, declares a HEALTHCHECK pointing at GET /health (when the default transport is HTTP), and uses exec-form ENTRYPOINT (JSON array, not shell string) so PID-1 receives signals directly and graceful shutdown works"
+    doc_anchor: "shared/docs/02-security-baseline.md#container-hardening"
+    code_anchor: "templates/typescript/Dockerfile"
+    notes: "Concrete Dockerfile assertions finalized in Phase 9 packaging. Level is SHOULD here because the per-template Dockerfile lands in Phase 9; Phase 9 may upgrade individual sub-rules to MUST."
+  - id: "SEC-17"
+    level: "MUST"
+    check: "Config validator at startup parses every environment variable but does NOT log the values of parsed variables; secrets hidden inside custom MCP_* variables never reach logs at boot. The validator MAY log the list of keys that were parsed (names only)."
+    doc_anchor: "shared/docs/04-config-and-logging.md#startup-validation"
+    code_anchor: "templates/typescript/src/config.ts#validateEnv"
+    notes: "Originally CONFIG-NO-VALUE-LOGGING in Phase 2; folded under SEC- per 03-CONTEXT cross-section guidance (the rule lives in the config-and-logging doc but its threat model is a secret-disclosure concern, so the matrix grades it under security)."
+
+smoke_probes:
+  - id: "SMOKE-01"
+    name: "initialize handshake — version negotiation succeeds"
+    request:
+      jsonrpc: "2.0"
+      id: 1
+      method: "initialize"
+      params:
+        protocolVersion: "2025-11-25"
+        capabilities: {}
+        clientInfo:
+          name: "smoke"
+          version: "0"
+    required_fields:
+      - "result.protocolVersion"
+      - "result.serverInfo.name"
+      - "result.capabilities.tools"
+      - "result.capabilities.resources"
+      - "result.capabilities.prompts"
+    expect:
+      "result.protocolVersion":
+        equals: "2025-11-25"
+  - id: "SMOKE-02"
+    name: "initialize with mismatched client version — server negotiates down or returns error envelope"
+    request:
+      jsonrpc: "2.0"
+      id: 1
+      method: "initialize"
+      params:
+        protocolVersion: "1999-01-01"
+        capabilities: {}
+        clientInfo:
+          name: "smoke"
+          version: "0"
+    required_fields:
+      - "jsonrpc"
+    expect:
+      "jsonrpc":
+        equals: "2.0"
+  - id: "SMOKE-03"
+    name: "tools/list returns exactly the add tool"
+    request:
+      jsonrpc: "2.0"
+      id: 2
+      method: "tools/list"
+      params: {}
+    required_fields:
+      - "result.tools[].name"
+      - "result.tools[].inputSchema"
+    expect:
+      "result.tools[].name":
+        equals: "add"
+      "result.tools":
+        length: 1
+  - id: "SMOKE-04"
+    name: "tools/call add{a:3,b:4} returns 7 after 5 progress notifications"
+    request:
+      jsonrpc: "2.0"
+      id: 3
+      method: "tools/call"
+      params:
+        name: "add"
+        arguments:
+          a: 3
+          b: 4
+        _meta:
+          progressToken: "smoke-04-pt"
+    required_fields:
+      - "result.content[].type"
+      - "result.content[].text"
+    forbidden_fields:
+      - "error"
+    expect:
+      "result.isError":
+        equals: false
+      "result.content[].text":
+        equals: "7"
+  - id: "SMOKE-05"
+    name: "tools/call add cancellation at 2500ms returns the locked tool-error envelope"
+    request:
+      jsonrpc: "2.0"
+      id: 4
+      method: "tools/call"
+      params:
+        name: "add"
+        arguments:
+          a: 100
+          b: 200
+        _meta:
+          progressToken: "smoke-05-pt"
+    required_fields:
+      - "result.isError"
+      - "result.content[].type"
+      - "result.content[].text"
+    forbidden_fields:
+      - "error"
+    expect:
+      "result.isError":
+        equals: true
+      "result.content[].text":
+        equals: "cancelled"
+  - id: "SMOKE-06"
+    name: "resources/list returns exactly the example://greeting resource"
+    request:
+      jsonrpc: "2.0"
+      id: 5
+      method: "resources/list"
+      params: {}
+    required_fields:
+      - "result.resources[].uri"
+      - "result.resources[].mimeType"
+    expect:
+      "result.resources[].uri":
+        equals: "example://greeting"
+      "result.resources":
+        length: 1
+  - id: "SMOKE-07"
+    name: "resources/read example://greeting returns Hello from MCP"
+    request:
+      jsonrpc: "2.0"
+      id: 6
+      method: "resources/read"
+      params:
+        uri: "example://greeting"
+    required_fields:
+      - "result.contents[].uri"
+      - "result.contents[].text"
+    expect:
+      "result.contents[].text":
+        equals: "Hello from MCP"
+  - id: "SMOKE-08"
+    name: "prompts/list returns exactly the greet prompt"
+    request:
+      jsonrpc: "2.0"
+      id: 7
+      method: "prompts/list"
+      params: {}
+    required_fields:
+      - "result.prompts[].name"
+      - "result.prompts[].arguments"
+    expect:
+      "result.prompts[].name":
+        equals: "greet"
+      "result.prompts":
+        length: 1
+  - id: "SMOKE-09"
+    name: "prompts/get greet name=World renders Hello, World!"
+    request:
+      jsonrpc: "2.0"
+      id: 8
+      method: "prompts/get"
+      params:
+        name: "greet"
+        arguments:
+          name: "World"
+    required_fields:
+      - "result.messages[].role"
+      - "result.messages[].content.text"
+    expect:
+      "result.messages[].role":
+        equals: "user"
+      "result.messages[].content.text":
+        equals: "Hello, World!"
+
+inspector_commands:
+  - id: "INSP-01"
+    label: "initialize handshake"
+    cmd: "npx @modelcontextprotocol/inspector --cli npx tsx templates/typescript/src/index.ts --transport=stdio --method initialize"
+    expect: "Output JSON contains \"protocolVersion\": \"2025-11-25\""
+  - id: "INSP-02"
+    label: "tools/call add"
+    cmd: "npx @modelcontextprotocol/inspector --cli npx tsx templates/typescript/src/index.ts --transport=stdio --method tools/call --tool-name add --tool-arg a=3 --tool-arg b=4"
+    expect: "Output JSON contains content[0].text == \"7\" after ~5 seconds"
+  - id: "INSP-03"
+    label: "resources/read greeting"
+    cmd: "npx @modelcontextprotocol/inspector --cli npx tsx templates/typescript/src/index.ts --transport=stdio --method resources/read --uri example://greeting"
+    expect: "Output JSON contains contents[0].text == \"Hello from MCP\""
+  - id: "INSP-04"
+    label: "prompts/get greet"
+    cmd: "npx @modelcontextprotocol/inspector --cli npx tsx templates/typescript/src/index.ts --transport=stdio --method prompts/get --prompt-name greet --prompt-arg name=World"
+    expect: "Output JSON contains messages[0].content.text == \"Hello, World!\""
