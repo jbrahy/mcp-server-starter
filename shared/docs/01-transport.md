@@ -192,12 +192,12 @@ fingerprinting.
 Templates are graded against this document by the following matrix
 checkpoint IDs (assigned by `shared/compliance-matrix.yaml`):
 
-- `TBD-MATRIX-TRANSPORT-STDIO` — `stdio` handshake, stdout purity,
+- `XPORT-01` — `stdio` handshake, stdout purity,
   logs-to-stderr.
-- `TBD-MATRIX-TRANSPORT-HTTP-BIND` — `127.0.0.1` default bind,
+- `XPORT-02` — `127.0.0.1` default bind,
   non-loopback `WARN`.
-- `TBD-MATRIX-TRANSPORT-HTTP-ORIGIN` — `Origin` allowlist semantics.
-- `TBD-MATRIX-TRANSPORT-HTTP-HEALTH` — `/health` shape.
-- `TBD-MATRIX-TRANSPORT-HTTP-OAUTH-PRM` —
+- `XPORT-03` — `Origin` allowlist semantics.
+- `XPORT-04` — `/health` shape.
+- `XPORT-05` —
   `/.well-known/oauth-protected-resource` stub shape.
-- `TBD-MATRIX-TRANSPORT-INITIALIZE` — version negotiation behavior.
+- `XPORT-06` — version negotiation behavior.
