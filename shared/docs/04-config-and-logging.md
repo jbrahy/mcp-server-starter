@@ -149,15 +149,15 @@ exit within a bounded time.
 Templates are graded against this document by the following matrix
 checkpoint IDs (assigned by `shared/compliance-matrix.yaml`):
 
-- `TBD-MATRIX-CONFIG-ENV-PREFIX` — all template-defined variables
+- `LOG-07` — all template-defined variables
   use `MCP_` prefix.
-- `TBD-MATRIX-CONFIG-STARTUP-VALIDATION` — fail-fast on parse errors.
-- `TBD-MATRIX-CONFIG-STRICT-ENV` — `STRICT_ENV=1` rejects unknown
+- `LOG-08` — fail-fast on parse errors.
+- `LOG-09` — `STRICT_ENV=1` rejects unknown
   `MCP_*` variables.
-- `TBD-MATRIX-CONFIG-NO-VALUE-LOGGING` — the boot-time validator
+- `SEC-17` — the boot-time validator
   does not log values.
-- `TBD-MATRIX-LOG-SINK-STDERR-DEFAULT` — primary sink is stderr.
-- `TBD-MATRIX-LOG-SINK-NO-STDOUT-STDIO` — stdout sink prohibited in
+- `LOG-10` — primary sink is stderr.
+- `LOG-11` — stdout sink prohibited in
   `stdio` mode.
-- `TBD-MATRIX-SHUTDOWN-GRACEFUL` — SIGTERM/SIGINT trigger bounded
+- `PROG-02` — SIGTERM/SIGINT trigger bounded
   graceful shutdown.
