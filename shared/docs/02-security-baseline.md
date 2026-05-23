@@ -220,20 +220,29 @@ template's packaging phase. Required container behavior:
 Templates are graded against this document by the following matrix
 checkpoint IDs (assigned by `shared/compliance-matrix.yaml`):
 
-- `TBD-MATRIX-SECURITY-STDOUT-PURE` — stdout-only-JSON-RPC in `stdio`
+- `SEC-01` — stdout-only-JSON-RPC in `stdio`
   mode.
-- `TBD-MATRIX-SECURITY-HTTP-BIND` — `127.0.0.1` default bind.
-- `TBD-MATRIX-SECURITY-HTTP-ORIGIN` — `Origin` allowlist semantics.
-- `TBD-MATRIX-SECURITY-AUTH-HOOK` — DEV-ONLY auth hook with per-request
+- `SEC-02` — `127.0.0.1` default bind.
+- `SEC-03` — `Origin` allowlist semantics.
+- `SEC-04` — DEV-ONLY auth hook with per-request
   `WARN`.
-- `TBD-MATRIX-SECURITY-FS-ROOTS` — canonical-realpath roots check,
+- `SEC-05` — canonical-realpath roots check,
   null-byte rejection.
-- `TBD-MATRIX-SECURITY-REDACTION` — every pattern in §"Secret
-  redaction in logs" is matched.
-- `TBD-MATRIX-SECURITY-SHELL-OFF` — no shell-execution tool in
+- `SEC-06` — header-name redaction (`Authorization`,
+  `Proxy-Authorization`, `Cookie`, `Set-Cookie`).
+- `SEC-07` — field-name redaction (`password`, `api_key`, `apikey`,
+  `secret`, `token`, `access_token`, `refresh_token`,
+  `client_secret`, `private_key`).
+- `SEC-08` — `Bearer` scheme token regex.
+- `SEC-09` — AWS access key ID and secret access key regexes.
+- `SEC-10` — GitHub classic and fine-grained PAT regexes.
+- `SEC-11` — OpenAI (`sk-`) and Anthropic (`sk-ant-`) API key regexes.
+- `SEC-12` — Slack tokens, JWT shape, and email PII (gated by
+  `MCP_LOG_PII=0`).
+- `SEC-13` — no shell-execution tool in
   default-shipping templates.
-- `TBD-MATRIX-SECURITY-NETWORK-ALLOWLIST` — allowlist-ready default.
-- `TBD-MATRIX-SECURITY-OAUTH-PRM-STUB` — RFC 9728 stub with
+- `SEC-14` — allowlist-ready default.
+- `SEC-15` — RFC 9728 stub with
   `_DEV_STUB: true`.
-- `TBD-MATRIX-SECURITY-CONTAINER-HARDENING` — multi-stage, non-root,
+- `SEC-16` — multi-stage, non-root,
   exec-form `ENTRYPOINT`, `HEALTHCHECK` (HTTP default).
