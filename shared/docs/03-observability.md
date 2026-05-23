@@ -219,19 +219,19 @@ Cancellation is a tool-level event, not a protocol error.
 Templates are graded against this document by the following matrix
 checkpoint IDs (assigned by `shared/compliance-matrix.yaml`):
 
-- `TBD-MATRIX-LOG-DESTINATION-STDERR` — `stdio` mode writes logs to
+- `LOG-01` — `stdio` mode writes logs to
   stderr only.
-- `TBD-MATRIX-LOG-SCHEMA-FIELDS` — required top-level keys present.
-- `TBD-MATRIX-LOG-SCHEMA-TS-ISO8601` — `ts` is ISO-8601
+- `LOG-02` — required top-level keys present.
+- `LOG-03` — `ts` is ISO-8601
   ms-precision string.
-- `TBD-MATRIX-LOG-SCHEMA-LEVEL-STRING` — `level` is lowercase
+- `LOG-04` — `level` is lowercase
   string, not numeric.
-- `TBD-MATRIX-LOG-SCHEMA-REQUEST-ID-ULID` — `request_id` is a
+- `LOG-05` — `request_id` is a
   26-char Crockford base32 ULID.
-- `TBD-MATRIX-LOG-EVENTS-CANONICAL` — `protocol_version_negotiated`,
+- `LOG-06` — `protocol_version_negotiated`,
   `request_started`, `request_completed`, `tool_call_*` emitted with
   locked field set.
-- `TBD-MATRIX-PROGRESS-NOTIFICATIONS` — emitted with matching
+- `PROG-01` — emitted with matching
   `progressToken`.
-- `TBD-MATRIX-CANCELLATION-FINAL-RESPONSE` — final response
+- `PROG-02` — final response
   delivered within `MCP_CANCEL_GRACE_MS` of `notifications/cancelled`.
