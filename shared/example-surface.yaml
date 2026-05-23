@@ -1,0 +1,49 @@
+# Canonical surface: every MCP template in this suite implements these
+# bytes verbatim. Source of truth for shared/compliance-matrix.yaml's
+# SURF-NN checkpoints and Phase 4 CI's smoke runner.
+# Spec authority: .planning/phases/03-mcp-2025-11-25-compliance-matrix/03-CONTEXT.md D-06..D-13.
+# Validates against shared/example-surface.schema.json (JSON Schema draft-2020-12).
+tools:
+  - name: add
+    description: "Adds two numbers. Intentionally slow (5s loop) to demonstrate MCP progress notifications and cancellation."
+    inputSchema:
+      type: object
+      properties:
+        a:
+          type: number
+          description: "First addend (IEEE-754 double, unbounded)."
+        b:
+          type: number
+          description: "Second addend (IEEE-754 double, unbounded)."
+      required:
+        - a
+        - b
+    timing:
+      total_ms: 5000
+      progress_interval_ms: 1000
+      progress_steps: 5
+      cancel_after_ms: 2500
+      expect_progress_count_at_cancel: 3
+    result:
+      isError: false
+      content:
+        - type: text
+          text_template: "{{a + b}}"
+    cancel_envelope:
+      isError: true
+      content:
+        - type: text
+          text: "cancelled"
+
+resources:
+  - uri: "example://greeting"
+    mimeType: "text/plain"
+    text: "Hello from MCP"
+
+prompts:
+  - name: greet
+    arguments:
+      - name: name
+        type: string
+        required: true
+    render_template: "Hello, {{name}}!"
