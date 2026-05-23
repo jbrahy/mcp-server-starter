@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mcp-server-template/shared/compliance-matrix.schema.json",
+  "title": "MCP Compliance Matrix",
+  "description": "Structural contract for shared/compliance-matrix.yaml. Ten top-level sections per D-26b canonical order. Strict typing (enum/const/integer) defeats YAML coercion per D-21.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "transports",
+    "capabilities",
+    "errors",
+    "progress_cancellation",
+    "log_schema",
+    "surface",
+    "security",
+    "smoke_probes",
+    "inspector_commands"
+  ],
+  "properties": {
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version"],
+      "properties": {
+        "version": { "const": "2025-11-25" }
+      }
+    },
+    "transports": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/checkpoint" }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/checkpoint" }
+    },
+    "errors": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/checkpoint" }
+    },
+    "progress_cancellation": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/checkpoint" }
+    },
+    "log_schema": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/checkpoint" }
+    },
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["yaml_path", "checkpoints"],
+      "properties": {
+        "yaml_path": { "const": "shared/example-surface.yaml" },
+        "checkpoints": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/checkpoint" }
+        }
+      }
+    },
+    "security": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/checkpoint" }
+    },
+    "smoke_probes": {
+      "type": "array",
+      "minItems": 9,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "request", "required_fields"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^SMOKE-[0-9]{2}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "request": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["jsonrpc", "method"],
+            "properties": {
+              "jsonrpc": { "const": "2.0" },
+              "method": {
+                "type": "string",
+                "minLength": 1
+              },
+              "id": {
+                "type": ["integer", "string"]
+              },
+              "params": {
+                "type": "object"
+              }
+            }
+          },
+          "required_fields": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/jsonpath" }
+          },
+          "forbidden_fields": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/jsonpath" }
+          },
+          "expect": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#/$defs/predicate" }
+          }
+        }
+      }
+    },
+    "inspector_commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "cmd", "expect"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^INSP-[0-9]{2}$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "cmd": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expect": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "level", "check", "doc_anchor", "code_anchor"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^(PROTO|XPORT|CAP|ERR|PROG|LOG|SURF|SEC|SMOKE|INSP)-[0-9]{2}$"
+        },
+        "level": {
+          "enum": ["MUST", "SHOULD", "MAY"]
+        },
+        "check": {
+          "type": "string",
+          "minLength": 1
+        },
+        "doc_anchor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "code_anchor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "applies_to": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["stdio", "streamable_http"]
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "jsonpath": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*|\\[\\])*$"
+    },
+    "predicate": {
+      "type": "object",
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": ["equals"],
+          "properties": {
+            "equals": {
+              "type": ["string", "number", "boolean"]
+            }
+          }
+        },
+        {
+          "required": ["contains"],
+          "properties": {
+            "contains": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "required": ["matches"],
+          "properties": {
+            "matches": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "required": ["length"],
+          "properties": {
+            "length": {
+              "type": "integer"
+            }
+          }
+        },
+        {
+          "required": ["at_least"],
+          "properties": {
+            "at_least": {
+              "type": "integer"
+            }
+          }
+        }
+      ],
+      "properties": {
+        "equals": { "type": ["string", "number", "boolean"] },
+        "contains": { "type": "string" },
+        "matches": { "type": "string" },
+        "length": { "type": "integer" },
+        "at_least": { "type": "integer" }
+      }
+    }
+  }
+}
