@@ -1,0 +1,36 @@
+# CODEOWNERS for the MCP Server Template Suite.
+#
+# Every PR-touchable path has at least one owner. Owners are auto-requested
+# for review on pull requests that touch their paths.
+#
+# Syntax: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Fallback — anything not matched by a later rule
+*                                   @jbrahy
+
+# Repo-root governance
+/README.md                          @jbrahy
+/SECURITY.md                        @jbrahy
+/CONTRIBUTING.md                    @jbrahy
+/CHANGELOG.md                       @jbrahy
+/LICENSE                            @jbrahy
+/CODEOWNERS                         @jbrahy
+/.gitignore                         @jbrahy
+
+# Source PRD
+/mcp_template_prd.md                @jbrahy
+
+# Shared cross-template foundation
+/shared/**                          @jbrahy
+
+# Cross-template tooling and validator
+/scripts/**                         @jbrahy
+
+# CI / GitHub configuration
+/.github/**                         @jbrahy
+
+# TypeScript canonical template
+/templates/typescript/**            @jbrahy
+
+# Additional language templates land in later milestones; owners added as
+# those phases open (Python, Go, C#, Rust).

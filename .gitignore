@@ -1,2 +1,33 @@
-*.md
+# Local-only planning + tooling
 .planning/
+.claude/
+.remember/
+
+# Node / TypeScript
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+coverage/
+.nyc_output/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.history/
