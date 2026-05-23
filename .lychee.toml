@@ -1,0 +1,19 @@
+# Lychee link-checker config.
+# Consumed by the `link-check` job in .github/workflows/ci.yml.
+# Keeps the workflow YAML thin; URL excludes and concurrency live here.
+
+exclude_path = ["node_modules", "dist", ".git", ".planning"]
+
+exclude = [
+  "^https?://(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)",
+  "^https?://([a-z0-9-]+\\.)?example\\.(com|net|org)",
+  "^mailto:",
+]
+
+max_concurrency = 4
+cache = true
+no_progress = true
+
+# Accept 2xx and 429 (rate-limited) — avoids CI flake when GitHub or npm
+# registry throttles us during a busy run.
+accept = ["200..=299", "429"]

@@ -1,0 +1,82 @@
+# CI workflow for the MCP server template suite.
+#
+# Every `uses:` line is pinned to a full 40-character commit SHA with a trailing
+# `# vX.Y.Z` version comment for Dependabot compat. Tag-only references (e.g.
+# `actions/checkout@v6`) are forbidden — they were the vector for the
+# tj-actions/changed-files compromise in March 2025; SHA-pinned workflows were
+# unaffected.
+#
+# `pull_request_target` is intentionally NOT used. Milestone 1 is single-owner;
+# `pull_request` suffices and avoids granting write access to fork PR code.
+#
+# Three jobs run on every push to `main` and every pull request against `main`:
+#   - validate:     `npm run validate` + `npm run validate:self-test`
+#   - matrix-drift: regenerate `shared/compliance-matrix.md` and diff against committed copy
+#   - link-check:   lychee over `shared/docs/**/*.md` and root governance markdown
+#
+# Security note: no untrusted event payload (issue/PR title or body, commit
+# message, head_ref) is interpolated into any `run:` step. The only ${{ }}
+# expressions in this file are `github.workflow` / `github.ref` in the
+# concurrency block (which compose internal identifiers, not shell arguments)
+# and `github.event_name` (an enum, never user-controlled).
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - name: Set up Node 22.x
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Validate templates (zero templates expected until Phase 5)
+        run: npm run validate
+      - name: Self-test (proves validator can fail)
+        run: npm run validate:self-test
+
+  matrix-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - name: Set up Node 22.x
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Regenerate compliance matrix Markdown
+        run: npm run generate-matrix
+      - name: Assert matrix MD is up to date
+        run: git diff --exit-code shared/compliance-matrix.md
+
+  link-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - name: Run lychee link checker
+        uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411  # v2.8.0
+        with:
+          args: --no-progress --verbose --max-concurrency 4 'shared/docs/**/*.md' '*.md'
+          fail: true
