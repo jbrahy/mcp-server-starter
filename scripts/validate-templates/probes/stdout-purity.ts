@@ -6,6 +6,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 
@@ -201,6 +202,11 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((e) => {
-  logFatal("unhandled exception", { error: String(e) });
-});
+// Run main() only when this file is the entry point — not when imported by index.ts.
+// Without this guard, `import { checkStdoutPurity } from "./probes/stdout-purity.js"`
+// also triggers this main(), which consumes the parent's argv and exits prematurely.
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  main().catch((e) => {
+    logFatal("unhandled exception", { error: String(e) });
+  });
+}

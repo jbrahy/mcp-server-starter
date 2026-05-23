@@ -5,10 +5,12 @@
 
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { checkStdoutPurity } from "./probes/stdout-purity.js";
 
 const REPO_ROOT = process.cwd();
 const TEMPLATES_DIR = resolve(REPO_ROOT, "templates");
 const FIXTURE_DIR = resolve(REPO_ROOT, "scripts/validate-templates/fixtures/failing-template");
+const FIXTURE_BIN = resolve(FIXTURE_DIR, "server.js");
 const SELF_TEST = process.argv.includes("--self-test");
 
 function logInfo(msg: string, data: Record<string, unknown> = {}): void {
@@ -51,11 +53,27 @@ function discoverTemplates(): string[] {
     });
 }
 
-function main(): void {
+async function main(): Promise<void> {
   if (SELF_TEST) {
-    // TODO(plan 04-05): replace with real self-test dispatch once probes + fixture exist.
-    logInfo("self-test not yet wired (full implementation in plan 04-05)", {
-      fixture_dir: FIXTURE_DIR,
+    // Per RESEARCH §Pitfall 1: --self-test is the regression test for the
+    // validator-can-fail invariant. The fixture deliberately violates stdout-purity;
+    // the probe MUST reject it. If the probe says "passed", the validator has
+    // regressed and CI MUST fail.
+    const result = await checkStdoutPurity(FIXTURE_BIN);
+    if (result.passed) {
+      process.stderr.write("self-test FAIL: failing-template fixture passed (validator is not biting)\n");
+      logInfo("self-test regression", {
+        fixture: FIXTURE_BIN,
+        expected: "failure",
+        actual: "pass",
+      });
+      process.exit(1);
+    }
+    process.stderr.write("self-test OK: failing-template was correctly rejected\n");
+    logInfo("self-test passed", {
+      fixture: FIXTURE_BIN,
+      rejected_reason: result.reason,
+      rejected_line: result.line,
     });
     process.exit(0);
   }
@@ -81,8 +99,4 @@ function main(): void {
   process.exit(0);
 }
 
-try {
-  main();
-} catch (e) {
-  logFatal("unhandled exception", { error: String(e) });
-}
+main().catch((e) => logFatal("unhandled exception", { error: String(e) }));
