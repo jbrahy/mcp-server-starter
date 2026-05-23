@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mcp-server-template/shared/example-surface.schema.json",
+  "title": "MCP Example Surface",
+  "description": "Structural contract for shared/example-surface.yaml. Byte-locks every value from D-06..D-13 via const. Exactly one tool (add), one resource (example://greeting), one prompt (greet).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tools", "resources", "prompts"],
+  "properties": {
+    "tools": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": { "$ref": "#/$defs/addTool" }
+    },
+    "resources": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": { "$ref": "#/$defs/greetingResource" }
+    },
+    "prompts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": { "$ref": "#/$defs/greetPrompt" }
+    }
+  },
+  "$defs": {
+    "addTool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "inputSchema", "timing", "result", "cancel_envelope"],
+      "properties": {
+        "name": { "const": "add" },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "inputSchema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "properties", "required"],
+          "properties": {
+            "type": { "const": "object" },
+            "properties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["a", "b"],
+              "properties": {
+                "a": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["type"],
+                  "properties": {
+                    "type": { "const": "number" },
+                    "description": { "type": "string" }
+                  }
+                },
+                "b": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["type"],
+                  "properties": {
+                    "type": { "const": "number" },
+                    "description": { "type": "string" }
+                  }
+                }
+              }
+            },
+            "required": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "enum": ["a", "b"]
+              }
+            }
+          }
+        },
+        "timing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total_ms",
+            "progress_interval_ms",
+            "progress_steps",
+            "cancel_after_ms",
+            "expect_progress_count_at_cancel"
+          ],
+          "properties": {
+            "total_ms": {
+              "type": "integer",
+              "const": 5000
+            },
+            "progress_interval_ms": {
+              "type": "integer",
+              "const": 1000
+            },
+            "progress_steps": {
+              "type": "integer",
+              "const": 5
+            },
+            "cancel_after_ms": {
+              "type": "integer",
+              "const": 2500
+            },
+            "expect_progress_count_at_cancel": {
+              "type": "integer",
+              "const": 3
+            }
+          }
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["isError", "content"],
+          "properties": {
+            "isError": { "const": false },
+            "content": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "text_template"],
+                "properties": {
+                  "type": { "const": "text" },
+                  "text_template": { "const": "{{a + b}}" }
+                }
+              }
+            }
+          }
+        },
+        "cancel_envelope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["isError", "content"],
+          "properties": {
+            "isError": { "const": true },
+            "content": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "text"],
+                "properties": {
+                  "type": { "const": "text" },
+                  "text": { "const": "cancelled" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "greetingResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uri", "mimeType", "text"],
+      "properties": {
+        "uri": { "const": "example://greeting" },
+        "mimeType": { "const": "text/plain" },
+        "text": { "const": "Hello from MCP" }
+      }
+    },
+    "greetPrompt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "arguments", "render_template"],
+      "properties": {
+        "name": { "const": "greet" },
+        "arguments": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "type", "required"],
+            "properties": {
+              "name": { "const": "name" },
+              "type": { "const": "string" },
+              "required": { "const": true }
+            }
+          }
+        },
+        "render_template": { "const": "Hello, {{name}}!" }
+      }
+    }
+  }
+}
