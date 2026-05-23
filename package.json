@@ -1,0 +1,20 @@
+{
+  "name": "mcp-server-template",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reusable, production-oriented MCP server template suite. Generator script for shared/compliance-matrix.md. See README.md for project scope.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": "^22.7.5"
+  },
+  "scripts": {
+    "generate-matrix": "tsx scripts/generate-matrix-md.ts"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.0",
+    "ajv-formats": "^3.0.1",
+    "tsx": "^4.19.0",
+    "yaml": "^2.6.0"
+  }
+}
