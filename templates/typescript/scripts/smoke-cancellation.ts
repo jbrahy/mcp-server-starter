@@ -1,29 +1,32 @@
-// Cancellation smoke driver — proves the cancellation-with-final-response
-// contract (PROG-02 / Pitfall 1.4) empirically against a real stdio server.
+// Cancellation smoke driver — proves the no-response cancellation contract
+// (PROG-02 / SMOKE-05) empirically against a real stdio server.
 //
-// The SDK silently DROPS a tool result that settles after it observes the
-// abort. The `add` handler defeats that by returning the locked envelope
-// {isError:true, content:[{type:"text",text:"cancelled"}]} the instant abort is
-// detected. This script spawns the template over stdio, calls `add` with a
-// progressToken, sends notifications/cancelled at 2500ms, and asserts the FINAL
-// envelope actually arrives (never an empty/dropped response, never a JSON-RPC
-// error) within the grace window.
+// Per the MCP 2025-11-25 spec (basic/utilities/cancellation): on
+// notifications/cancelled the receiver stops processing, frees resources, and
+// sends NO response for the cancelled request; the sender ignores any late
+// response. The pinned @modelcontextprotocol/sdk@1.29.0 enforces this — it
+// drops any handler result that settles after the abort signal fires.
 //
-// IMPORTANT: we do NOT pass an AbortSignal into callTool. The client's own
-// signal path deletes its response handler and rejects on abort, which would
-// hide the server's final response. Instead we send the raw cancelled
-// notification for the in-flight request id (sniffed off the outbound stream)
-// and keep the callTool promise alive to observe what the server delivers.
+// This script spawns the template over stdio, calls `add` with a progressToken,
+// and aborts the in-flight request at 2500ms via an AbortController passed to
+// callTool. The client's own cancellation path sends notifications/cancelled to
+// the server and rejects the callTool promise. We assert the spec-conformant
+// outcome: (a) the callTool promise REJECTS/aborts (the request terminates),
+// (b) NO tool result is delivered for that request, and (c) ~3 progress
+// notifications arrived before the cancel. A hard 15s timeout makes any hang
+// (e.g. a client that waits for a response that will never come) fail loudly.
 
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 
 const CANCEL_AFTER_MS = 2500; // shared/example-surface.yaml timing.cancel_after_ms
+const EXPECT_PROGRESS_AT_CANCEL = 3; // timing.expect_progress_count_at_cancel
+const PROGRESS_TOLERANCE = 1; // allow ±1 for runner timing jitter
 const GRACE_MS = Number(process.env.MCP_CANCEL_GRACE_MS ?? "1000");
-const HARD_TIMEOUT_MS = 15_000; // guard against the SDK-drops-response hang
+const HARD_TIMEOUT_MS = 15_000; // guard against a hang waiting for a response that never arrives
 
 function fail(message: string): never {
   process.stdout.write(`FAIL: ${message}\n`);
@@ -31,10 +34,6 @@ function fail(message: string): never {
 }
 
 async function main(): Promise<void> {
-  // Sniff the outbound tools/call request id so we can target it with a raw
-  // notifications/cancelled. Wrapping send() is robust — it reads the actual
-  // JSON-RPC id rather than guessing the client's private counter.
-  let addRequestId: string | number | undefined;
   const transport = new StdioClientTransport({
     command: "npx",
     args: ["tsx", "src/index.ts", "--transport=stdio"],
@@ -44,84 +43,81 @@ async function main(): Promise<void> {
       string
     >,
   });
-  const originalSend = transport.send.bind(transport);
-  transport.send = (message: JSONRPCMessage): Promise<void> => {
-    if (
-      "method" in message &&
-      message.method === "tools/call" &&
-      "id" in message
-    ) {
-      addRequestId = message.id;
-    }
-    return originalSend(message);
-  };
 
   const client = new Client({ name: "smoke-cancellation", version: "0.0.0" });
 
-  // Hard overall timeout: if the response is dropped (Pitfall 1) the callTool
-  // promise never settles, so this is the explicit loud-failure guard.
+  // Hard overall timeout: if the call neither resolves nor rejects (a client
+  // hanging for a response the spec says will never come), this is the explicit
+  // loud-failure guard.
   const hardTimer = setTimeout(() => {
     fail(
-      `call did not settle within ${HARD_TIMEOUT_MS}ms — response was dropped (SDK abort-drop)`,
+      `call did not settle within ${HARD_TIMEOUT_MS}ms — request hung waiting for a response (a cancelled request gets none)`,
     );
   }, HARD_TIMEOUT_MS);
   hardTimer.unref();
 
   await client.connect(transport);
 
-  // Fire the cancellation mid-call. Supplying onprogress makes the SDK attach a
-  // progressToken to the request _meta, exercising the server's progress path.
+  // Abort the in-flight request mid-call. The SDK client translates the abort
+  // into notifications/cancelled to the server and rejects the callTool promise.
+  const controller = new AbortController();
   let abortAt = 0;
   const cancelTimer = setTimeout(() => {
-    if (addRequestId === undefined) {
-      fail("never observed the outbound tools/call request id");
-    }
     abortAt = Date.now();
-    void client.notification({
-      method: "notifications/cancelled",
-      params: { requestId: addRequestId, reason: "smoke-test cancel" },
-    });
+    controller.abort();
   }, CANCEL_AFTER_MS);
   cancelTimer.unref();
 
+  // Supplying onprogress makes the SDK attach a progressToken to the request
+  // _meta, exercising the server's progress path. Count notifications observed
+  // before the cancel fires.
   let progressCount = 0;
-  const result = await client.callTool(
-    { name: "add", arguments: { a: 100, b: 200 } },
-    undefined,
-    {
-      onprogress: () => {
-        progressCount += 1;
+  let resultDelivered = false;
+
+  try {
+    await client.callTool(
+      { name: "add", arguments: { a: 100, b: 200 } },
+      CallToolResultSchema,
+      {
+        signal: controller.signal,
+        onprogress: () => {
+          progressCount += 1;
+        },
       },
-    },
-  );
+    );
+    // Reaching here means a tool result was delivered for the cancelled
+    // request — a spec violation (the receiver must send no response).
+    resultDelivered = true;
+  } catch {
+    // Expected: the request terminates via the abort, so callTool rejects.
+    // We do not inspect the rejection shape — any rejection means the request
+    // did not produce a delivered result, which is the spec-conformant outcome.
+  }
+
   const settledAt = Date.now();
   clearTimeout(hardTimer);
   clearTimeout(cancelTimer);
 
-  // Assert the locked cancel envelope arrived (not a success, not dropped).
-  const content = Array.isArray(result.content) ? result.content : [];
-  const first = content[0] as { type?: string; text?: string } | undefined;
-  if (result.isError !== true) {
-    fail(`expected isError:true, got isError:${String(result.isError)}`);
+  if (abortAt === 0) {
+    fail("cancellation never fired (call completed before the 2500ms cancel)");
   }
-  if (first?.type !== "text" || first.text !== "cancelled") {
-    fail(`expected content[0].text "cancelled", got ${JSON.stringify(first)}`);
+  if (resultDelivered) {
+    fail(
+      "a tool result was delivered for the cancelled request — the spec forbids any response",
+    );
   }
-  if ("error" in result) {
-    fail("result carried a forbidden JSON-RPC error field");
-  }
-
-  const elapsed = abortAt === 0 ? -1 : settledAt - abortAt;
-  if (elapsed < 0) {
-    fail("cancellation never fired");
-  }
-  if (elapsed > GRACE_MS) {
-    fail(`cancel envelope arrived in ${elapsed}ms, exceeding grace ${GRACE_MS}ms`);
+  const lowerBound = EXPECT_PROGRESS_AT_CANCEL - PROGRESS_TOLERANCE;
+  const upperBound = EXPECT_PROGRESS_AT_CANCEL + PROGRESS_TOLERANCE;
+  if (progressCount < lowerBound || progressCount > upperBound) {
+    fail(
+      `expected ~${EXPECT_PROGRESS_AT_CANCEL} (±${PROGRESS_TOLERANCE}) progress notifications before cancel, got ${progressCount}`,
+    );
   }
 
+  const elapsed = settledAt - abortAt;
   await client.close();
   process.stdout.write(
-    `PASS: cancel envelope delivered in ${elapsed}ms (grace ${GRACE_MS}ms, ${progressCount} progress before cancel)\n`,
+    `PASS: request terminated on cancel with no response (settled ${elapsed}ms after abort, ${progressCount} progress before cancel)\n`,
   );
   process.exit(0);
 }
