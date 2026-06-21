@@ -109,24 +109,59 @@ The full security baseline lives in `shared/docs/02-security-baseline.md`
 
 ## Quick start with the TypeScript template
 
-> The TypeScript template lands in Milestone 1, Phase 5. This section
-> will be filled with concrete install, run, and Claude Code
-> registration steps when the template ships. Track progress under the
-> "Status" table above.
+The TypeScript canonical template ships now. Requires Node `^22.7.5`.
 
-The shape of the documented Quick start will be:
+1. **Clone and enter the template:**
 
-1. `git clone` the repository and `cd templates/typescript`.
-2. `npm install` to install pinned dependencies.
-3. `npx tsx src/index.ts --transport=stdio` to run the server over
-   `stdio`, or `npx tsx src/index.ts --transport=http` to run over
-   Streamable HTTP on `127.0.0.1:3000`.
-4. Drive a smoke test with the MCP Inspector CLI:
-   `npx @modelcontextprotocol/inspector --cli npx tsx src/index.ts --transport=stdio --method tools/list`.
-5. Register the template with Claude Code using the example
-   configuration at `templates/typescript/examples/claude-code-config.json`.
-6. Build a container image with the multi-stage Dockerfile at
-   `templates/typescript/Dockerfile`.
+   ```bash
+   git clone https://github.com/jbrahy/mcp-server-template.git
+   cd mcp-server-template/templates/typescript
+   ```
+
+2. **Install and build:**
+
+   ```bash
+   npm install
+   npm run build
+   ```
+
+3. **Run the server.** Over `stdio` (the default — stdout carries
+   JSON-RPC, logs go to stderr):
+
+   ```bash
+   npm run start:stdio
+   ```
+
+   Or over Streamable HTTP (binds `127.0.0.1:3000` by default):
+
+   ```bash
+   npm run start:http
+   ```
+
+   Transport precedence: the `--transport=` CLI flag wins over the
+   `MCP_TRANSPORT` environment variable; the default is `stdio`.
+
+4. **Build and run the container** with the multi-stage `Dockerfile`:
+
+   ```bash
+   docker build -t mcp-ts templates/typescript/
+   docker run --rm -i mcp-ts                 # stdio (keep stdin open)
+   ```
+
+   For HTTP in Docker, override the bind host to `0.0.0.0` so the
+   published port is reachable:
+
+   ```bash
+   docker run --rm -p 3000:3000 -e MCP_TRANSPORT=http -e MCP_HTTP_HOST=0.0.0.0 mcp-ts
+   ```
+
+5. **Register with Claude Code** using the example configuration at
+   `templates/typescript/examples/claude-code-config.json` and the
+   walkthrough in `templates/typescript/docs/CLAUDE-CODE-USAGE.md`.
+
+6. **Read the full per-template reference** —
+   `templates/typescript/README.md` covers build, test, environment
+   variables, and security defaults in depth.
 
 ## Contributing
 
