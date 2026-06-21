@@ -14,6 +14,7 @@ import { loadConfig } from "./config.js";
 import { buildLogger } from "./logger.js";
 import { buildServer } from "./server.js";
 import { connectStdio } from "./transports/stdio.js";
+import { connectHttp } from "./transports/http.js";
 
 async function main(): Promise<void> {
   // 1. Transport selection — CLI flag wins over MCP_TRANSPORT env (default stdio).
@@ -41,12 +42,7 @@ async function main(): Promise<void> {
       await connectStdio(server);
       break;
     case "http":
-      // DEFERRED to plan 05-02. Emit a structured line to fd 2 and exit.
-      logger.error(
-        { component: "transport_http", data: { transport: "http" } },
-        "not_yet_wired",
-      );
-      process.exit(1);
+      await connectHttp(server, config, logger);
       break;
   }
 }
