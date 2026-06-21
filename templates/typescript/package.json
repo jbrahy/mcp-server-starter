@@ -12,7 +12,11 @@
     "build": "tsc -p tsconfig.json",
     "start:stdio": "tsx src/index.ts --transport=stdio",
     "start:http": "tsx src/index.ts --transport=http",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "pretest": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
