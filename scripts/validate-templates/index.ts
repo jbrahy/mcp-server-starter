@@ -3,6 +3,7 @@
 // IS the test infrastructure for Phase 4: the --self-test fixture (plan 04-04 + 04-05)
 // is its own regression test. See .planning/phases/04-ci-validator-harness-skeleton/04-RESEARCH.md §Pattern 2.
 
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { checkStdoutPurity } from "./probes/stdout-purity.js";
@@ -38,6 +39,25 @@ function logFatal(msg: string, data: Record<string, unknown> = {}): never {
   };
   process.stderr.write(JSON.stringify(line) + "\n");
   process.exit(1);
+}
+
+// dist/ is gitignored, so a fresh clone and CI have source but no compiled binary.
+// Build the node-runnable entrypoint the stdout-purity probe spawns (`node dist/index.js`)
+// before probing. Returns the binary path on success.
+function ensureBuilt(templateDir: string): { ok: true; binary: string } | { ok: false; reason: string } {
+  const binary = join(templateDir, "dist", "index.js");
+  if (existsSync(binary)) return { ok: true, binary };
+
+  if (!existsSync(join(templateDir, "node_modules"))) {
+    logInfo("installing template deps (npm ci)", { template: templateDir });
+    const ci = spawnSync("npm", ["ci"], { cwd: templateDir, stdio: "inherit" });
+    if (ci.status !== 0) return { ok: false, reason: "npm ci failed" };
+  }
+  logInfo("building template (npm run build)", { template: templateDir });
+  const build = spawnSync("npm", ["run", "build"], { cwd: templateDir, stdio: "inherit" });
+  if (build.status !== 0) return { ok: false, reason: "npm run build failed" };
+  if (!existsSync(binary)) return { ok: false, reason: "dist/index.js missing after build" };
+  return { ok: true, binary };
 }
 
 function discoverTemplates(): string[] {
@@ -91,12 +111,37 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  // TODO(Phase 5): wire per-template probe dispatch (stdout-purity + smoke probes).
-  logInfo(`${templates.length} template(s) validated, 0 failure(s)`, {
+  let failures = 0;
+  for (const templateDir of templates) {
+    const built = ensureBuilt(templateDir);
+    if (!built.ok) {
+      failures += 1;
+      logInfo(`template FAILED (build): ${templateDir}`, {
+        template: templateDir,
+        reason: built.reason,
+      });
+      continue;
+    }
+    const result = await checkStdoutPurity(built.binary, ["--transport=stdio"]);
+    if (result.passed) {
+      logInfo(`stdout-purity OK: ${templateDir}`, { template: templateDir });
+    } else {
+      failures += 1;
+      logInfo(`stdout-purity FAILED: ${templateDir}`, {
+        template: templateDir,
+        reason: result.reason,
+        line: result.line,
+        snippet: result.snippet,
+      });
+    }
+  }
+
+  logInfo(`${templates.length} template(s) validated, ${failures} failure(s)`, {
     count: templates.length,
+    failures,
     templates,
   });
-  process.exit(0);
+  process.exit(failures > 0 ? 1 : 0);
 }
 
 main().catch((e) => logFatal("unhandled exception", { error: String(e) }));

@@ -48,7 +48,7 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
-      - name: Validate templates (zero templates expected until Phase 5)
+      - name: Validate templates (builds each template + runs stdout-purity probe)
         run: npm run validate
       - name: Self-test (proves validator can fail)
         run: npm run validate:self-test
