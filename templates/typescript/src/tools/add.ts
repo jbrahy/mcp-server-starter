@@ -4,17 +4,21 @@
 // every language port in this suite must reproduce byte-for-byte:
 //   1. progress notifications  — one `notifications/progress` per step when the
 //      caller supplies a progressToken in the request `_meta`.
-//   2. cancellation WITH A FINAL RESPONSE — on `notifications/cancelled` the
-//      handler returns the locked tool-error envelope rather than throwing.
+//   2. cancellation — on `notifications/cancelled` the handler stops work, frees
+//      its timer + abort listener, logs the outcome, and returns. Per the MCP
+//      2025-11-25 spec (basic/utilities/cancellation) the receiver SHOULD NOT
+//      send any response for a cancelled request; the client observes
+//      termination through its own in-flight call rejecting/aborting.
 //
 // SECURITY / THREAT NOTES (see shared threat register):
 //   - Numeric input is Zod-finite-validated: NaN / Infinity / non-number are
 //     rejected before the handler body runs (threat: NaN/Infinity DoS).
-//   - The abort path returns a final {isError:true} envelope rather than
-//     throwing (threat: cancellation-drops-response). The SDK silently drops a
-//     handler result that settles AFTER it observes the abort, so the cancel
-//     envelope is returned the instant abort is detected — no awaited work and
-//     no throw follow that detection.
+//   - On abort the handler stops the loop and tears down its timer + listener so
+//     nothing leaks (threat: cancellation resource leak). It returns a value, but
+//     `@modelcontextprotocol/sdk@1.29.0` drops any result that settles after the
+//     abort signal fires — that is the SPEC-CONFORMANT outcome (no response on a
+//     cancelled request), not a workaround. The returned envelope is never
+//     observed by the client.
 //   - Tool arguments (a, b) are never logged verbatim outside the injected
 //     logger, whose value-shape redactor runs on every line.
 
@@ -64,18 +68,20 @@ function sleepOrAbort(ms: number, signal: AbortSignal): Promise<boolean> {
  *
  * @param server the McpServer to register on
  * @param logger structured logger (lifecycle lines route through its redactor)
- * @param config validated config; MCP_CANCEL_GRACE_MS bounds the watchdog
- *               budget for delivering the cancel envelope to the client
+ * @param config validated config; MCP_CANCEL_GRACE_MS bounds how long the
+ *               handler may take to observe the abort and unwind — NOT a
+ *               deadline to deliver a response (a cancelled request gets none)
  */
 export function registerAddTool(
   server: McpServer,
   logger: Logger,
   config: Config,
 ): void {
-  // MCP_CANCEL_GRACE_MS is the budget within which the final cancel response
-  // must reach the client. The loop returns within one INTERVAL_MS tick of the
-  // abort and does no awaited work on the cancel path, so it stays well inside
-  // this watchdog deadline by construction.
+  // MCP_CANCEL_GRACE_MS is the unwind budget: how long the handler may take to
+  // notice the abort and tear down cleanly. It is NOT a response deadline —
+  // per the MCP spec a cancelled request receives no response. The loop returns
+  // within one INTERVAL_MS tick of the abort and does no awaited work on the
+  // cancel path, so it unwinds well inside this budget by construction.
   const cancelGraceMs = config.MCP_CANCEL_GRACE_MS;
 
   server.registerTool("add", {
@@ -97,10 +103,12 @@ export function registerAddTool(
     for (let step = 1; step <= STEPS; step++) {
       const aborted = await sleepOrAbort(INTERVAL_MS, signal);
       if (aborted) {
-        // Load-bearing: return the locked cancel envelope NOW, while the SDK
-        // still considers the request live. No sendNotification (no-op after
-        // abort), no throw, no further await — any of those would let the SDK
-        // observe the abort first and drop this response.
+        // Cancelled: sleepOrAbort already cleared the timer and removed the
+        // abort listener, so nothing leaks. Stop the loop, log the outcome, and
+        // return. The MCP spec says a cancelled request gets NO response, and
+        // the SDK enforces that by dropping any result that settles after the
+        // abort — so this returned value is never delivered to the client (by
+        // design). No sendNotification (a no-op post-abort) and no throw.
         logger.info(
           { component: "tools/add", data: { tool: "add", outcome: "cancelled" } },
           "tool_call_completed",
