@@ -27,20 +27,20 @@ and prompts layered on top.
 
 ## Status
 
-**Milestone 1 (in progress):** shared foundation + TypeScript canonical
+**Milestone 1 (complete):** shared foundation + TypeScript canonical
 template.
 
 | Component | Location | Status |
 |-----------|----------|--------|
-| Repo & governance scaffold | repo root | Phase 1 — in progress |
-| Shared docs & security baseline | `shared/docs/` | Phase 2 — pending |
-| MCP `2025-11-25` compliance matrix | `shared/compliance-matrix.yaml` | Phase 3 — pending |
-| CI & validator harness skeleton | `.github/workflows/`, `scripts/validate-templates/` | Phase 4 — pending |
-| TypeScript template — skeleton & transports | `templates/typescript/` | Phase 5 — pending |
-| TypeScript template — example surface | `templates/typescript/src/{tools,resources,prompts}/` | Phase 6 — pending |
-| TypeScript template — production hardening | `templates/typescript/src/{lifecycle,http,security}/` | Phase 7 — pending |
-| TypeScript template — tests | `templates/typescript/tests/` | Phase 8 — pending |
-| TypeScript template — packaging & docs | `templates/typescript/{Dockerfile,docs,examples}/` | Phase 9 — pending |
+| Repo & governance scaffold | repo root | Complete |
+| Shared docs & security baseline | `shared/docs/` | Complete |
+| MCP `2025-11-25` compliance matrix | `shared/compliance-matrix.yaml` | Complete |
+| CI & validator harness skeleton | `.github/workflows/`, `scripts/validate-templates/` | Complete |
+| TypeScript template — skeleton & transports | `templates/typescript/` | Complete |
+| TypeScript template — example surface | `templates/typescript/src/{tools,resources,prompts}/` | Complete |
+| TypeScript template — production hardening | `templates/typescript/src/{lifecycle,http,security}/` | Complete |
+| TypeScript template — tests | `templates/typescript/test/` | Complete |
+| TypeScript template — packaging & docs | `templates/typescript/{Dockerfile,docs,examples}/` | Complete |
 
 **Future milestones (planned, not yet implemented):** Python / FastMCP,
 Go, C# / .NET, optional Rust, Copier-based generator, cross-template
