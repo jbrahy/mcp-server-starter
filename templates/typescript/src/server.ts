@@ -5,23 +5,26 @@
 // hardcode `protocolVersion`; the SDK returns its negotiated value
 // (XPORT-06, SMOKE-02).
 //
-// This slice registers exactly one PLACEHOLDER tool, resource, and prompt so
-// the SDK advertises the tools/resources/prompts capabilities at initialize
-// (SMOKE-01 requires result.capabilities.{tools,resources,prompts} present).
-// The placeholders use a NEUTRAL name (__placeholder) — the real `add` tool /
-// example resource / example prompt land in Phase 6.
+// This slice registers the canonical example surface — the `add` tool
+// (SURF-01), the example://greeting resource (SURF-02), and the greet prompt
+// (SURF-03) — so the SDK advertises the tools/resources/prompts capabilities at
+// initialize (SMOKE-01 requires result.capabilities.{tools,resources,prompts}
+// present).
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { type Logger } from "./logger.js";
 import { type Config } from "./config.js";
 import { registerAddTool } from "./tools/add.js";
+import { registerGreetingResource } from "./resources/example.js";
+import { registerGreetPrompt } from "./prompts/example.js";
 
 const SERVER_NAME = "mcp-typescript-template";
 const SERVER_VERSION = "0.1.0";
 
 /**
- * Construct the MCP server, advertise capabilities, and register placeholder
- * handlers. Transport-agnostic — the caller wires a transport afterwards.
+ * Construct the MCP server, advertise capabilities, and register the example
+ * surface (add tool, greeting resource, greet prompt). Transport-agnostic — the
+ * caller wires a transport afterwards.
  */
 export function buildServer(logger: Logger, config: Config): McpServer {
   const server = new McpServer(
@@ -39,37 +42,11 @@ export function buildServer(logger: Logger, config: Config): McpServer {
   // The example tool (SURF-01): add(a,b) with progress + cancellation.
   registerAddTool(server, logger, config);
 
-  // Placeholder resource — Phase 6 replaces with the example resource.
-  server.registerResource(
-    "__placeholder",
-    "placeholder://__placeholder",
-    {
-      title: "Placeholder",
-      description:
-        "Placeholder resource so the resources capability is advertised at initialize.",
-    },
-    async (uri) => ({
-      contents: [{ uri: uri.href, text: "placeholder" }],
-    }),
-  );
+  // The example resource (SURF-02): example://greeting → "Hello from MCP".
+  registerGreetingResource(server);
 
-  // Placeholder prompt — Phase 6 replaces with the example prompt.
-  server.registerPrompt(
-    "__placeholder",
-    {
-      title: "Placeholder",
-      description:
-        "Placeholder prompt so the prompts capability is advertised at initialize.",
-    },
-    async () => ({
-      messages: [
-        {
-          role: "user",
-          content: { type: "text", text: "placeholder" },
-        },
-      ],
-    }),
-  );
+  // The example prompt (SURF-03): greet(name) → "Hello, {name}!".
+  registerGreetPrompt(server);
 
   logger.info(
     { component: "server", data: { name: SERVER_NAME, version: SERVER_VERSION } },
