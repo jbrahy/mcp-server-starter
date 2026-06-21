@@ -95,7 +95,7 @@ errors:
     check: "Tool failures use the MCP tool-error envelope ({isError: true, content: [...]}); never the JSON-RPC error envelope"
     doc_anchor: "shared/docs/03-observability.md#cancellation"
     code_anchor: "templates/typescript/src/tools/add.ts#cancellationHandler"
-    notes: "Cross-references SURF-NN cancel_envelope and PROG-02; aligns with D-11 byte-lock."
+    notes: "Cross-references SURF-01 cancel_behavior and PROG-02; aligns with D-11 byte-lock."
 
 progress_cancellation:
   - id: "PROG-01"
@@ -106,10 +106,10 @@ progress_cancellation:
     notes: ""
   - id: "PROG-02"
     level: "MUST"
-    check: "Final response delivered within MCP_CANCEL_GRACE_MS of inbound notifications/cancelled; handler must NOT skip the final response (Codex #20925)"
+    check: "On inbound notifications/cancelled the handler stops work, frees resources, and sends NO response for the cancelled request (MCP 2025-11-25 basic/utilities/cancellation); the client observes request termination (its in-flight call rejects/aborts) and ignores any late response"
     doc_anchor: "shared/docs/03-observability.md#cancellation"
     code_anchor: "templates/typescript/src/tools/add.ts#cancellationHandler"
-    notes: "See https://github.com/openai/codex/issues/20925 for the failure mode this checkpoint defends against."
+    notes: "Spec-conformant: the receiver SHOULD NOT respond to a cancelled request. (A prior revision required a final response; that contradicted the MCP spec and is physically undeliverable with @modelcontextprotocol/sdk@1.29.0, which drops any response that settles after the abort signal fires.)"
 
 log_schema:
   - id: "LOG-01"
@@ -184,10 +184,10 @@ surface:
   checkpoints:
     - id: "SURF-01"
       level: "MUST"
-      check: "add tool name, inputSchema (a/b as JSON-Schema number, both required), timing (total_ms 5000 / progress_interval_ms 1000 / progress_steps 5 / cancel_after_ms 2500 / expect_progress_count_at_cancel 3), result envelope ({content: [{type: text, text: String(a+b)}], isError: false}), and cancel_envelope ({isError: true, content: [{type: text, text: \"cancelled\"}]}) match shared/example-surface.yaml byte-for-byte"
+      check: "add tool name, inputSchema (a/b as JSON-Schema number, both required), timing (total_ms 5000 / progress_interval_ms 1000 / progress_steps 5 / cancel_after_ms 2500 / expect_progress_count_at_cancel 3), result envelope ({content: [{type: text, text: String(a+b)}], isError: false}), and cancel_behavior ({mode: terminate_no_response, sends_response: false}) match shared/example-surface.yaml byte-for-byte"
       doc_anchor: "shared/docs/00-overview.md#per-template-contract-checklist"
       code_anchor: "templates/typescript/src/tools/add.ts#addTool"
-      notes: "Byte-locks 03-CONTEXT D-06..D-11. Cross-references ERR-02 (tool-error envelope) and PROG-01/PROG-02 (progress emission and cancellation grace)."
+      notes: "Byte-locks 03-CONTEXT D-06..D-11. Cross-references ERR-02 (tool-error envelope) and PROG-01/PROG-02 (progress emission and spec-conformant cancellation: no response on cancel)."
     - id: "SURF-02"
       level: "MUST"
       check: "example://greeting resource uri (lowercase, exact), mimeType text/plain, and text bytes \"Hello from MCP\" (UTF-8, no trailing newline) match shared/example-surface.yaml verbatim"
@@ -383,7 +383,7 @@ smoke_probes:
       "result.content[].text":
         equals: "7"
   - id: "SMOKE-05"
-    name: "tools/call add cancellation at 2500ms returns the locked tool-error envelope"
+    name: "tools/call add cancelled at 2500ms terminates the request with NO response (MCP spec: receiver sends none)"
     request:
       jsonrpc: "2.0"
       id: 4
@@ -395,17 +395,10 @@ smoke_probes:
           b: 200
         _meta:
           progressToken: "smoke-05-pt"
-    required_fields:
-      - "result.isError"
-      - "result.content[].type"
-      - "result.content[].text"
+    required_fields: []
     forbidden_fields:
+      - "result"
       - "error"
-    expect:
-      "result.isError":
-        equals: true
-      "result.content[].text":
-        equals: "cancelled"
   - id: "SMOKE-06"
     name: "resources/list returns exactly the example://greeting resource"
     request:

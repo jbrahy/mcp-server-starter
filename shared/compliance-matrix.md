@@ -57,12 +57,12 @@ Two error envelopes coexist: protocol-level (JSON-RPC) and tool-level (`isError`
 
 ## Progress and Cancellation
 
-Long-running tools emit progress notifications and honor cancellation by sending a final response — never by going silent.
+Long-running tools emit progress notifications and honor cancellation per the MCP spec: stop work, free resources, and send no response for the cancelled request — the client observes request termination.
 
 | ID | Level | Check | Doc | Code | Applies to |
 |----|-------|-------|-----|------|------------|
 | <a id="PROG-01"></a>`PROG-01` | MUST | notifications/progress emitted with progressToken matching the inbound tools/call _meta.progressToken; one notification per progress_steps tick | [shared/docs/03-observability.md#progress-notifications](shared/docs/03-observability.md#progress-notifications) | `templates/typescript/src/tools/add.ts#emitProgress` | stdio, streamable_http |
-| <a id="PROG-02"></a>`PROG-02` | MUST | Final response delivered within MCP_CANCEL_GRACE_MS of inbound notifications/cancelled; handler must NOT skip the final response (Codex #20925) | [shared/docs/03-observability.md#cancellation](shared/docs/03-observability.md#cancellation) | `templates/typescript/src/tools/add.ts#cancellationHandler` | stdio, streamable_http |
+| <a id="PROG-02"></a>`PROG-02` | MUST | On inbound notifications/cancelled the handler stops work, frees resources, and sends NO response for the cancelled request (MCP 2025-11-25 basic/utilities/cancellation); the client observes request termination (its in-flight call rejects/aborts) and ignores any late response | [shared/docs/03-observability.md#cancellation](shared/docs/03-observability.md#cancellation) | `templates/typescript/src/tools/add.ts#cancellationHandler` | stdio, streamable_http |
 
 ## Log Schema
 
@@ -88,7 +88,7 @@ Canonical surface defined in [`shared/example-surface.yaml`](example-surface.yam
 
 | ID | Level | Check | Doc | Code | Applies to |
 |----|-------|-------|-----|------|------------|
-| <a id="SURF-01"></a>`SURF-01` | MUST | add tool name, inputSchema (a/b as JSON-Schema number, both required), timing (total_ms 5000 / progress_interval_ms 1000 / progress_steps 5 / cancel_after_ms 2500 / expect_progress_count_at_cancel 3), result envelope ({content: [{type: text, text: String(a+b)}], isError: false}), and cancel_envelope ({isError: true, content: [{type: text, text: "cancelled"}]}) match shared/example-surface.yaml byte-for-byte | [shared/docs/00-overview.md#per-template-contract-checklist](shared/docs/00-overview.md#per-template-contract-checklist) | `templates/typescript/src/tools/add.ts#addTool` | stdio, streamable_http |
+| <a id="SURF-01"></a>`SURF-01` | MUST | add tool name, inputSchema (a/b as JSON-Schema number, both required), timing (total_ms 5000 / progress_interval_ms 1000 / progress_steps 5 / cancel_after_ms 2500 / expect_progress_count_at_cancel 3), result envelope ({content: [{type: text, text: String(a+b)}], isError: false}), and cancel_behavior ({mode: terminate_no_response, sends_response: false}) match shared/example-surface.yaml byte-for-byte | [shared/docs/00-overview.md#per-template-contract-checklist](shared/docs/00-overview.md#per-template-contract-checklist) | `templates/typescript/src/tools/add.ts#addTool` | stdio, streamable_http |
 | <a id="SURF-02"></a>`SURF-02` | MUST | example://greeting resource uri (lowercase, exact), mimeType text/plain, and text bytes "Hello from MCP" (UTF-8, no trailing newline) match shared/example-surface.yaml verbatim | [shared/docs/00-overview.md#per-template-contract-checklist](shared/docs/00-overview.md#per-template-contract-checklist) | `templates/typescript/src/resources/example.ts#greetingResource` | stdio, streamable_http |
 | <a id="SURF-03"></a>`SURF-03` | MUST | greet prompt name (lowercase, exact), single required string argument 'name' (no default, no maxLength), and render_template 'Hello, {{name}}!' (literal double-braces; substituted byte-for-byte; no surrounding whitespace) match shared/example-surface.yaml verbatim | [shared/docs/00-overview.md#per-template-contract-checklist](shared/docs/00-overview.md#per-template-contract-checklist) | `templates/typescript/src/prompts/example.ts#greetPrompt` | stdio, streamable_http |
 
@@ -259,7 +259,7 @@ Each probe is a JSON-RPC request plus shape assertions executed by Phase 4 CI ag
 }
 ```
 
-### <a id="SMOKE-05"></a>SMOKE-05: tools/call add cancellation at 2500ms returns the locked tool-error envelope
+### <a id="SMOKE-05"></a>SMOKE-05: tools/call add cancelled at 2500ms terminates the request with NO response (MCP spec: receiver sends none)
 
 ```json
 {
@@ -281,26 +281,10 @@ Each probe is a JSON-RPC request plus shape assertions executed by Phase 4 CI ag
 
 **Required fields:**
 
-- `result.isError`
-- `result.content[].type`
-- `result.content[].text`
-
 **Forbidden fields:**
 
+- `result`
 - `error`
-
-**Expect:**
-
-```json
-{
-  "result.isError": {
-    "equals": true
-  },
-  "result.content[].text": {
-    "equals": "cancelled"
-  }
-}
-```
 
 ### <a id="SMOKE-06"></a>SMOKE-06: resources/list returns exactly the example://greeting resource
 

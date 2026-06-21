@@ -75,7 +75,7 @@ const ORIENTATION: Record<string, string> = {
   errors:
     "Two error envelopes coexist: protocol-level (JSON-RPC) and tool-level (`isError`). They are not interchangeable.",
   progress_cancellation:
-    "Long-running tools emit progress notifications and honor cancellation by sending a final response — never by going silent.",
+    "Long-running tools emit progress notifications and honor cancellation per the MCP spec: stop work, free resources, and send no response for the cancelled request — the client observes request termination.",
   log_schema:
     "Structured JSON log lines written to stderr. The schema is closed; additions go inside `data:{}`.",
   security:

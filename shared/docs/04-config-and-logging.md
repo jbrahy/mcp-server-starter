@@ -36,7 +36,7 @@ semantics specified.
 | `MCP_LOG_LEVEL` | `trace` / `debug` / `info` / `warn` / `error` / `fatal` | `info` | Minimum log level emitted. |
 | `MCP_LOG_FILE` | path | unset | Optional secondary log sink. When set, log lines are written to stderr AND appended to this path. |
 | `MCP_LOG_PII` | `0` / `1` | `0` | When `1`, email addresses bypass the PII redaction (see `02-security-baseline.md` §PII). |
-| `MCP_CANCEL_GRACE_MS` | integer milliseconds | `1000` | Grace period after `notifications/cancelled` before the server stops waiting and emits the final response. |
+| `MCP_CANCEL_GRACE_MS` | integer milliseconds | `1000` | Grace period for the handler to observe `notifications/cancelled` and unwind cleanly (stop work, free resources). Per the MCP spec the cancelled request receives no response. |
 | `MCP_SHUTDOWN_GRACE_MS` | integer milliseconds | `30000` | Grace period on SIGTERM/SIGINT before forced exit. |
 | `STRICT_ENV` | `0` / `1` | `0` | When `1`, the server rejects unknown `MCP_*` variables at startup (typo guard). |
 

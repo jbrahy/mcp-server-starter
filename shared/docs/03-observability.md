@@ -197,22 +197,31 @@ request, the server MUST:
 1. Signal cancellation to the tool handler (via `AbortSignal` in
    TypeScript, `context.Context` cancellation in Go, equivalent in
    each language).
-2. Stop work as soon as the next checkpoint allows.
-3. **Send a final JSON-RPC response** to the cancelled request within
-   a bounded grace period (default 1000 ms; configurable via
-   `MCP_CANCEL_GRACE_MS`). The final response is a tool result with
-   `isError: false` and content describing the cancellation state.
+2. Stop work as soon as the next checkpoint allows, and free any
+   resources held by the request.
+3. **Send NO response** for the cancelled request. Per the MCP
+   specification (`basic/utilities/cancellation`), receivers of a
+   cancellation notification SHOULD stop processing, free resources,
+   and **not send a response** for the cancelled request; the sender
+   SHOULD ignore any response that arrives afterward. The client
+   observes request termination through its own in-flight call
+   rejecting/aborting, not through a response.
 
-The final response MUST NOT be a JSON-RPC protocol error.
-Cancellation is a tool-level event, not a protocol error.
+`MCP_CANCEL_GRACE_MS` bounds how long the handler may take to observe
+the abort and unwind cleanly — not a deadline to deliver a response
+(there is none).
 
-> **Why a final response after cancellation:**
-> [openai/codex issue #20925](https://github.com/openai/codex/issues/20925)
-> documents the failure mode — clients hang indefinitely when a
-> cancellable request does not receive a final response. The "stop
-> work and silently disappear" pattern that feels intuitive to
-> implement is broken; clients track request lifecycles via the
-> response, not via the cancellation notification.
+> **Why no response after cancellation:**
+> The MCP spec treats `notifications/cancelled` as terminating the
+> request: the receiver frees resources and stays silent, and the
+> sender ignores any late response (network races mean one may already
+> be in flight). The pinned `@modelcontextprotocol/sdk@1.29.0` enforces
+> this — it drops any response that settles after the abort signal
+> fires, so a handler physically cannot deliver a post-cancel response.
+> A client that hangs waiting for one (e.g.
+> [openai/codex #20925](https://github.com/openai/codex/issues/20925))
+> is not tracking request lifecycle per the spec; that is a client
+> defect, not a server contract.
 
 ## Conformance
 
@@ -233,5 +242,6 @@ checkpoint IDs (assigned by `shared/compliance-matrix.yaml`):
   locked field set.
 - `PROG-01` — emitted with matching
   `progressToken`.
-- `PROG-02` — final response
-  delivered within `MCP_CANCEL_GRACE_MS` of `notifications/cancelled`.
+- `PROG-02` — on `notifications/cancelled` the handler stops work,
+  frees resources, and sends no response (the client observes
+  request termination).

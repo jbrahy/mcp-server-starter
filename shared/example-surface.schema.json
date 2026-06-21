@@ -30,7 +30,7 @@
     "addTool": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "description", "inputSchema", "timing", "result", "cancel_envelope"],
+      "required": ["name", "description", "inputSchema", "timing", "result", "cancel_behavior"],
       "properties": {
         "name": { "const": "add" },
         "description": {
@@ -134,26 +134,13 @@
             }
           }
         },
-        "cancel_envelope": {
+        "cancel_behavior": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["isError", "content"],
+          "required": ["mode", "sends_response"],
           "properties": {
-            "isError": { "const": true },
-            "content": {
-              "type": "array",
-              "minItems": 1,
-              "maxItems": 1,
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["type", "text"],
-                "properties": {
-                  "type": { "const": "text" },
-                  "text": { "const": "cancelled" }
-                }
-              }
-            }
+            "mode": { "const": "terminate_no_response" },
+            "sends_response": { "const": false }
           }
         }
       }

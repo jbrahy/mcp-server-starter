@@ -29,11 +29,14 @@ tools:
       content:
         - type: text
           text_template: "{{a + b}}"
-    cancel_envelope:
-      isError: true
-      content:
-        - type: text
-          text: "cancelled"
+    cancel_behavior:
+      # MCP 2025-11-25 cancellation (basic/utilities/cancellation): on inbound
+      # notifications/cancelled the receiver MUST stop processing, free resources,
+      # and send NO response for the cancelled request. The client observes request
+      # termination (its in-flight call rejects/aborts); the sender ignores any late
+      # response. cancel_after_ms / expect_progress_count_at_cancel above still apply.
+      mode: terminate_no_response
+      sends_response: false
 
 resources:
   - uri: "example://greeting"
