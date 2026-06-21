@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "mcp-server-ts": {
+      "command": "node",
+      "args": [
+        "/ABSOLUTE/PATH/TO/templates/typescript/dist/index.js",
+        "--transport=stdio"
+      ],
+      "env": {
+        "MCP_LOG_LEVEL": "info"
+      }
+    }
+  }
+}
