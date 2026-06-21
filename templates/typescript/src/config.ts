@@ -52,17 +52,31 @@ export const RESERVED_ENV_KEYS = Object.freeze([
   "STRICT_ENV",
 ] as const);
 
+// The MCP_-prefixed reserved keys. STRICT_ENV is reserved but NOT MCP_-prefixed,
+// so it is excluded from the prefix scan below by construction.
+const RESERVED_MCP_KEYS: ReadonlySet<string> = new Set(
+  RESERVED_ENV_KEYS.filter((k) => k.startsWith("MCP_")),
+);
+
 /**
- * SEAM for plan 05-03: when STRICT_ENV=1, reject any process.env key starting
- * with "MCP_" that is not in RESERVED_ENV_KEYS (LOG-09 typo guard).
+ * When STRICT_ENV=1, reject any process.env key starting with "MCP_" that is
+ * not in the reserved set (LOG-09 typo guard). Zod's schema only sees the
+ * curated subset we pass it, not the global env, so the unknown-key reject must
+ * be an explicit scan over process.env (RESEARCH A3).
  *
- * Zod's `.strict()` only sees the curated subset we pass it, not the global
- * env, so the full unknown-key reject must be an explicit scan — implemented in
- * plan 05-03. This stub is the named call site so 05-03 attaches without
- * reshaping loadConfig().
+ * On the first unknown key, writes ONE structured JSON error line to fd 2
+ * naming the offending KEY only (never its value — SEC-17) and exits non-zero.
+ * STRICT_ENV=0 (default) is a no-op: unknown keys are ignored.
  */
-export function assertNoUnknownEnvKeys(_env: NodeJS.ProcessEnv): void {
-  // Deferred to plan 05-03. Intentionally a no-op in this slice.
+export function assertNoUnknownEnvKeys(env: NodeJS.ProcessEnv): void {
+  if (env.STRICT_ENV !== "1") return;
+
+  for (const key of Object.keys(env)) {
+    if (!key.startsWith("MCP_")) continue;
+    if (RESERVED_MCP_KEYS.has(key)) continue;
+    // SEC-17: name the offending KEY, never the value.
+    failConfig(key, "unknown_env_key");
+  }
 }
 
 /** Write one structured JSON error line to fd 2, then exit non-zero. */
@@ -85,8 +99,8 @@ function failConfig(variable: string, reason: string): never {
  * exits the process non-zero (fail-fast, LOG-08).
  */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  assertNoUnknownEnvKeys(env);
-
+  // Value-level fail-fast first (LOG-08): a bad reserved value exits non-zero
+  // with a structured error before any unknown-key scan.
   const result = ConfigSchema.safeParse(env);
   if (!result.success) {
     const first = result.error.issues[0];
@@ -94,6 +108,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     const reason = first?.code ?? "invalid";
     failConfig(variable, reason);
   }
+
+  // STRICT_ENV=1 unknown-MCP_*-key reject (LOG-09), after a successful parse.
+  assertNoUnknownEnvKeys(env);
 
   return Object.freeze(result.data);
 }
