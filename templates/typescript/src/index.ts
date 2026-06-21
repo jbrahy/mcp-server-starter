@@ -34,7 +34,7 @@ async function main(): Promise<void> {
   const logger = buildLogger(config);
 
   // 4. Server graph (transport-agnostic).
-  const server = buildServer(logger);
+  const server = buildServer(logger, config);
 
   // 5. Dispatch on transport.
   switch (config.MCP_TRANSPORT) {

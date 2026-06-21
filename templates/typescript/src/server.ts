@@ -13,6 +13,8 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { type Logger } from "./logger.js";
+import { type Config } from "./config.js";
+import { registerAddTool } from "./tools/add.js";
 
 const SERVER_NAME = "mcp-typescript-template";
 const SERVER_VERSION = "0.1.0";
@@ -21,7 +23,7 @@ const SERVER_VERSION = "0.1.0";
  * Construct the MCP server, advertise capabilities, and register placeholder
  * handlers. Transport-agnostic — the caller wires a transport afterwards.
  */
-export function buildServer(logger: Logger): McpServer {
+export function buildServer(logger: Logger, config: Config): McpServer {
   const server = new McpServer(
     { name: SERVER_NAME, version: SERVER_VERSION },
     {
@@ -34,18 +36,8 @@ export function buildServer(logger: Logger): McpServer {
     },
   );
 
-  // Placeholder tool — Phase 6 replaces with the real `add` tool.
-  server.registerTool(
-    "__placeholder",
-    {
-      title: "Placeholder",
-      description:
-        "Placeholder tool so the tools capability is advertised at initialize. Replaced by the example surface in Phase 6.",
-    },
-    async () => ({
-      content: [{ type: "text", text: "placeholder" }],
-    }),
-  );
+  // The example tool (SURF-01): add(a,b) with progress + cancellation.
+  registerAddTool(server, logger, config);
 
   // Placeholder resource — Phase 6 replaces with the example resource.
   server.registerResource(
