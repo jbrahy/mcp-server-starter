@@ -1,0 +1,10 @@
+{
+  "name": "failing-template-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "server.js",
+  "bin": {
+    "failing-template": "server.js"
+  }
+}
