@@ -10,9 +10,11 @@
 // In stdio mode, fd 1 carries JSON-RPC ONLY. No console.* anywhere in this
 // import graph (enforced by ESLint no-restricted-syntax).
 
+import { type Server as HttpServer } from "node:http";
 import { loadConfig } from "./config.js";
 import { buildLogger } from "./logger.js";
 import { buildServer } from "./server.js";
+import { registerShutdown } from "./lifecycle/shutdown.js";
 import { connectStdio } from "./transports/stdio.js";
 import { connectHttp } from "./transports/http.js";
 
@@ -36,13 +38,39 @@ async function main(): Promise<void> {
   // 4. Server graph (transport-agnostic).
   const server = buildServer(logger, config);
 
+  // 4b. Register graceful shutdown FIRST — before any transport connects — so
+  // the SIGINT/SIGTERM handlers are installed before a request can arrive
+  // (HARD-01). The httpServer reference is late-bound: connectHttp() returns the
+  // listening socket only after app.listen(), but the handler invokes
+  // stopAcceptingNew LAZILY at signal time, so binding it after connect is safe
+  // (resolves the registerShutdown ↔ httpServer ordering — W#2). For stdio there
+  // is no socket: stopAcceptingNew pauses stdin so no new inbound message is
+  // parsed while in-flight work drains.
+  let httpServer: HttpServer | undefined;
+  registerShutdown({
+    server,
+    logger,
+    graceMs: config.MCP_SHUTDOWN_GRACE_MS,
+    stopAcceptingNew: () => {
+      if (config.MCP_TRANSPORT === "http") {
+        // close() stops accepting NEW connections; active ones keep draining.
+        httpServer?.close();
+      } else {
+        // stdio: no listening socket — stop parsing new inbound messages.
+        process.stdin.pause();
+      }
+    },
+  });
+
   // 5. Dispatch on transport.
   switch (config.MCP_TRANSPORT) {
     case "stdio":
       await connectStdio(server, logger);
       break;
     case "http":
-      await connectHttp(server, config, logger);
+      // Late-bind the http.Server so the (already-registered) shutdown handler
+      // can close it at signal time.
+      httpServer = await connectHttp(server, config, logger);
       break;
   }
 }
