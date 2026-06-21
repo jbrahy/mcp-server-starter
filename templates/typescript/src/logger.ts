@@ -22,6 +22,7 @@
 
 import pino, { type Logger, type LoggerOptions } from "pino";
 import { type Config } from "./config.js";
+import { requestStore } from "./lifecycle/correlation.js";
 
 export type { Logger };
 
@@ -112,6 +113,14 @@ export function buildLogger(cfg: Config): Logger {
     formatters: {
       // Lowercase string level (LOG-04), not the default numeric level.
       level: (label) => ({ level: label }),
+    },
+    // Request correlation (HARD-04 / LOG-05): stamp the ALS request_id onto
+    // EVERY line emitted inside a request scope. Returns {} outside any scope
+    // (e.g. boot lines) so non-request logs are unchanged. Additive only — the
+    // schema, redaction, and streamWrite behavior above/below are untouched.
+    mixin() {
+      const ctx = requestStore.getStore();
+      return ctx ? { request_id: ctx.request_id } : {};
     },
     // Layer A — key-path redaction (SEC-06/07): value redacted whenever its
     // KEY is a known secret name, regardless of value shape.
