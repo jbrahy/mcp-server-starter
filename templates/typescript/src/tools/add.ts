@@ -101,6 +101,17 @@ export function registerAddTool(
     );
 
     for (let step = 1; step <= STEPS; step++) {
+      // Emit progress at the START of each step so the emissions land at
+      // t≈0,1000,2000,3000,4000 over the 5s run. This makes a cancel at
+      // cancel_after_ms (2500) observe expect_progress_count_at_cancel (3)
+      // notifications, matching shared/example-surface.yaml byte-for-byte.
+      if (progressToken !== undefined) {
+        await sendNotification({
+          method: "notifications/progress",
+          params: { progressToken, progress: step, total: STEPS },
+        });
+      }
+
       const aborted = await sleepOrAbort(INTERVAL_MS, signal);
       if (aborted) {
         // Cancelled: sleepOrAbort already cleared the timer and removed the
@@ -114,13 +125,6 @@ export function registerAddTool(
           "tool_call_completed",
         );
         return { isError: true, content: [{ type: "text", text: "cancelled" }] };
-      }
-
-      if (progressToken !== undefined) {
-        await sendNotification({
-          method: "notifications/progress",
-          params: { progressToken, progress: step, total: STEPS },
-        });
       }
     }
 

@@ -24,7 +24,9 @@ import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 
 const CANCEL_AFTER_MS = 2500; // shared/example-surface.yaml timing.cancel_after_ms
 const EXPECT_PROGRESS_AT_CANCEL = 3; // timing.expect_progress_count_at_cancel
-const PROGRESS_TOLERANCE = 1; // allow ±1 for runner timing jitter
+// Exact: add.ts emits progress at step start (t≈0,1000,2000), cancel fires at
+// 2500ms — a ~500ms margin on each side makes exactly 3 deterministic.
+const PROGRESS_TOLERANCE = 0;
 const GRACE_MS = Number(process.env.MCP_CANCEL_GRACE_MS ?? "1000");
 const HARD_TIMEOUT_MS = 15_000; // guard against a hang waiting for a response that never arrives
 
