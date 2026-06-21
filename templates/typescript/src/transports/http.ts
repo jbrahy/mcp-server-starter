@@ -14,12 +14,14 @@
 //
 // No console.* anywhere in this import graph (enforced by ESLint).
 
+import { type Server as HttpServer } from "node:http";
 import express from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { type Config } from "../config.js";
 import { type Logger } from "../logger.js";
 import { correlationMiddleware } from "../lifecycle/correlation.js";
+import { incInFlight, decInFlight } from "../lifecycle/shutdown.js";
 import { originAllowlistMiddleware } from "../security/origin.js";
 import { healthRoute } from "../http/health.js";
 import { prmRoute } from "../http/oauth-prm.js";
@@ -35,7 +37,7 @@ export async function connectHttp(
   server: McpServer,
   cfg: Config,
   logger: Logger,
-): Promise<void> {
+): Promise<HttpServer> {
   const app = express();
   app.use(express.json());
   // Correlation BEFORE origin and the route (research §Pattern 3 mount order:
@@ -55,6 +57,21 @@ export async function connectHttp(
   app.use(authHook(logger));
 
   app.post("/mcp", async (req, res) => {
+    // Drain accounting (HARD-01, belt-and-suspenders alongside the add-handler
+    // wrap): count this request as in-flight for the lifetime of the response,
+    // so the shutdown drain waits for the HTTP exchange to finish. Decrement
+    // exactly ONCE — whichever of 'finish' | 'close' fires first.
+    incInFlight();
+    let counted = true;
+    const release = (): void => {
+      if (counted) {
+        counted = false;
+        decInFlight();
+      }
+    };
+    res.on("finish", release);
+    res.on("close", release);
+
     // Fresh transport per request is the stateless pattern: no shared session
     // state, no Mcp-Session-Id header.
     const transport = new StreamableHTTPServerTransport({
@@ -76,10 +93,16 @@ export async function connectHttp(
     );
   }
 
-  app.listen(cfg.MCP_HTTP_PORT, host, () => {
+  // Capture the http.Server so the shutdown handler can httpServer.close() it to
+  // stop accepting NEW connections while letting active ones drain (resolves the
+  // registerShutdown ↔ httpServer ordering: connectHttp returns the server, and
+  // index.ts late-binds stopAcceptingNew to close it at signal time).
+  const httpServer = app.listen(cfg.MCP_HTTP_PORT, host, () => {
     logger.info(
       { component: "transport_http", data: { host, port: cfg.MCP_HTTP_PORT } },
       "http_listening",
     );
   });
+
+  return httpServer;
 }

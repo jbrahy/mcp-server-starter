@@ -26,6 +26,7 @@ import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { type Logger } from "../logger.js";
 import { type Config } from "../config.js";
+import { incInFlight, decInFlight } from "../lifecycle/shutdown.js";
 
 // Timing sourced from shared/example-surface.yaml (timing block):
 //   total_ms 5000 / progress_interval_ms 1000 / progress_steps 5.
@@ -95,44 +96,63 @@ export function registerAddTool(
     const { signal, sendNotification, _meta } = extra;
     const progressToken = _meta?.progressToken;
 
-    logger.info(
-      { component: "tools/add", data: { tool: "add", cancelGraceMs } },
-      "tool_call_started",
-    );
+    // Make this in-flight call visible to the graceful-shutdown drain (HARD-01):
+    // increment on entry, decrement in a finally so SIGTERM mid-add WAITS for
+    // the real result rather than close-aborting it (research §Pattern 1).
+    incInFlight();
+    try {
+      logger.info(
+        { component: "tools/add", data: { tool: "add", cancelGraceMs } },
+        "tool_call_started",
+      );
 
-    for (let step = 1; step <= STEPS; step++) {
-      // Emit progress at the START of each step so the emissions land at
-      // t≈0,1000,2000,3000,4000 over the 5s run. This makes a cancel at
-      // cancel_after_ms (2500) observe expect_progress_count_at_cancel (3)
-      // notifications, matching shared/example-surface.yaml byte-for-byte.
-      if (progressToken !== undefined) {
-        await sendNotification({
-          method: "notifications/progress",
-          params: { progressToken, progress: step, total: STEPS },
-        });
+      for (let step = 1; step <= STEPS; step++) {
+        // Emit progress at the START of each step so the emissions land at
+        // t≈0,1000,2000,3000,4000 over the 5s run. This makes a cancel at
+        // cancel_after_ms (2500) observe expect_progress_count_at_cancel (3)
+        // notifications, matching shared/example-surface.yaml byte-for-byte.
+        if (progressToken !== undefined) {
+          await sendNotification({
+            method: "notifications/progress",
+            params: { progressToken, progress: step, total: STEPS },
+          });
+        }
+
+        const aborted = await sleepOrAbort(INTERVAL_MS, signal);
+        if (aborted) {
+          // Cancelled: sleepOrAbort already cleared the timer and removed the
+          // abort listener, so nothing leaks. Stop the loop, log the outcome,
+          // and return. The MCP spec says a cancelled request gets NO response,
+          // and the SDK enforces that by dropping any result that settles after
+          // the abort — so this returned value is never delivered to the client
+          // (by design). No sendNotification (a no-op post-abort) and no throw.
+          logger.info(
+            {
+              component: "tools/add",
+              data: { tool: "add", outcome: "cancelled" },
+            },
+            "tool_call_completed",
+          );
+          return {
+            isError: true,
+            content: [{ type: "text", text: "cancelled" }],
+          };
+        }
       }
 
-      const aborted = await sleepOrAbort(INTERVAL_MS, signal);
-      if (aborted) {
-        // Cancelled: sleepOrAbort already cleared the timer and removed the
-        // abort listener, so nothing leaks. Stop the loop, log the outcome, and
-        // return. The MCP spec says a cancelled request gets NO response, and
-        // the SDK enforces that by dropping any result that settles after the
-        // abort — so this returned value is never delivered to the client (by
-        // design). No sendNotification (a no-op post-abort) and no throw.
-        logger.info(
-          { component: "tools/add", data: { tool: "add", outcome: "cancelled" } },
-          "tool_call_completed",
-        );
-        return { isError: true, content: [{ type: "text", text: "cancelled" }] };
-      }
+      logger.info(
+        { component: "tools/add", data: { tool: "add", outcome: "ok" } },
+        "tool_call_completed",
+      );
+      // String(a + b) exactly — no toFixed, no locale formatting (Pitfall 4).
+      return {
+        isError: false,
+        content: [{ type: "text", text: String(a + b) }],
+      };
+    } finally {
+      // Decrement on EVERY exit path (normal, cancelled, throw) so the drain
+      // counter never leaks an in-flight slot and shutdown cannot deadlock.
+      decInFlight();
     }
-
-    logger.info(
-      { component: "tools/add", data: { tool: "add", outcome: "ok" } },
-      "tool_call_completed",
-    );
-    // String(a + b) exactly — no toFixed, no locale formatting (Pitfall 4).
-    return { isError: false, content: [{ type: "text", text: String(a + b) }] };
   });
 }
