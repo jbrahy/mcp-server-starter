@@ -19,6 +19,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { type Config } from "../config.js";
 import { type Logger } from "../logger.js";
+import { correlationMiddleware } from "../lifecycle/correlation.js";
 import { originAllowlistMiddleware } from "../security/origin.js";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
@@ -34,6 +35,10 @@ export async function connectHttp(
 ): Promise<void> {
   const app = express();
   app.use(express.json());
+  // Correlation BEFORE origin and the route (research §Pattern 3 mount order:
+  // express.json → correlation → origin → routes) so every downstream line —
+  // including origin rejections — is request-scoped with a ULID request_id.
+  app.use(correlationMiddleware());
   // Origin allowlist BEFORE the route — deny-by-default DNS-rebinding defense.
   app.use(originAllowlistMiddleware(cfg, logger));
 

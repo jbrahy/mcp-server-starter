@@ -39,7 +39,7 @@ async function main(): Promise<void> {
   // 5. Dispatch on transport.
   switch (config.MCP_TRANSPORT) {
     case "stdio":
-      await connectStdio(server);
+      await connectStdio(server, logger);
       break;
     case "http":
       await connectHttp(server, config, logger);
