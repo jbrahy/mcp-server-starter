@@ -21,6 +21,9 @@ import { type Config } from "../config.js";
 import { type Logger } from "../logger.js";
 import { correlationMiddleware } from "../lifecycle/correlation.js";
 import { originAllowlistMiddleware } from "../security/origin.js";
+import { healthRoute } from "../http/health.js";
+import { prmRoute } from "../http/oauth-prm.js";
+import { authHook } from "../http/auth.js";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 
@@ -39,8 +42,17 @@ export async function connectHttp(
   // express.json → correlation → origin → routes) so every downstream line —
   // including origin rejections — is request-scoped with a ULID request_id.
   app.use(correlationMiddleware());
+  // Liveness + discovery mount BEFORE origin/auth so probes and OAuth metadata
+  // are reachable un-gated (research Pitfall 5): a health probe must not be
+  // Origin-rejected or auth-WARN-spammed. These two GET routes are the only
+  // pre-auth surface.
+  app.get("/health", healthRoute);
+  app.get("/.well-known/oauth-protected-resource", prmRoute(logger));
   // Origin allowlist BEFORE the route — deny-by-default DNS-rebinding defense.
   app.use(originAllowlistMiddleware(cfg, logger));
+  // DEV-ONLY auth hook (MUST-REPLACE, SEC-04). Gates only the /mcp data path
+  // that follows it; WARNs once per request.
+  app.use(authHook(logger));
 
   app.post("/mcp", async (req, res) => {
     // Fresh transport per request is the stateless pattern: no shared session
